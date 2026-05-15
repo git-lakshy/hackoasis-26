@@ -40,8 +40,8 @@ with st.sidebar:
         state = st.session_state.graph_state
         resources = get_resources()
         findings = state.get('findings', [])
-        auto_savings = sum(o.get('projected_savings', 0) for o in state.get('auto_queue', []))
-        appr_savings = sum(o.get('projected_savings', 0) for o in state.get('approval_queue', []))
+        auto_savings = sum(sim.projected_savings for opp, sim, risk in state.get('auto_queue', []))
+        appr_savings = sum(sim.projected_savings for opp, sim, risk in state.get('approval_queue', []))
         st.metric('Total Resources', len(resources))
         st.metric('Findings', len(findings))
         st.metric('Potential Savings', f"${auto_savings + appr_savings:,.0f}/mo")
@@ -52,15 +52,15 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(['Cost Overview', 'Agent Trace', 'Action 
 with tab1:
     resources = get_resources()
     df = pd.DataFrame(resources)
-    if not df.empty and 'cloud' in df.columns and 'monthly_spend' in df.columns:
-        spend_df = df.groupby('cloud', as_index=False)['monthly_spend'].sum()
-        st.plotly_chart(px.bar(spend_df, x='cloud', y='monthly_spend', title='Monthly Spend by Cloud'), use_container_width=True)
+    if not df.empty and 'cloud' in df.columns and 'monthly_cost' in df.columns:
+        spend_df = df.groupby('cloud', as_index=False)['monthly_cost'].sum()
+        st.plotly_chart(px.bar(spend_df, x='cloud', y='monthly_cost', title='Monthly Spend by Cloud'), use_container_width=True)
 
-        total_spend = df['monthly_spend'].sum()
+        total_spend = df['monthly_cost'].sum()
         state = st.session_state.graph_state
-        auto_savings = sum(o.get('projected_savings', 0) for o in state.get('auto_queue', []))
-        appr_savings = sum(o.get('projected_savings', 0) for o in state.get('approval_queue', []))
-        exec_savings = sum(e.get('actual_savings', 0) for e in state.get('executed', []))
+        auto_savings = sum(sim.projected_savings for opp, sim, risk in state.get('auto_queue', []))
+        appr_savings = sum(sim.projected_savings for opp, sim, risk in state.get('approval_queue', []))
+        exec_savings = sum(r.actual_savings or 0 for r in state.get('executed', []))
 
         c1, c2, c3 = st.columns(3)
         c1.metric('Total Spend', f"${total_spend:,.0f}/mo")
@@ -92,7 +92,7 @@ with tab3:
                 'risk_tier': st.column_config.TextColumn('Risk Tier'),
                 'simulated_savings': st.column_config.NumberColumn('Sim. Savings', format='$%.2f'),
                 'actual_savings': st.column_config.NumberColumn('Actual Savings', format='$%.2f'),
-                'accuracy': st.column_config.NumberColumn('Accuracy', format='%.1f%%'),
+                'accuracy': st.column_config.NumberColumn('Accuracy', format='%.2f'),
             },
             use_container_width=True,
         )
@@ -102,26 +102,21 @@ with tab3:
 with tab4:
     queue = st.session_state.approval_queue
     if queue:
-        approved_ids = []
-        to_remove = []
-        for i, item in enumerate(queue):
+        for i, (opp, sim, risk) in enumerate(queue):
             with st.container(border=True):
-                st.write(f"**{item.get('resource_id')}** — {item.get('action')}")
-                st.write(f"Risk: `{item.get('risk_tier')}` | Factors: {', '.join(item.get('risk_factors', []))}")
-                st.write(f"Projected Savings: **${item.get('projected_savings', 0):,.0f}/mo**")
+                st.write(f"**{opp.resource_id}** — {opp.action}")
+                st.write(f"Risk: `{risk.risk_tier}` | Factors: {', '.join(risk.risk_factors)}")
+                st.write(f"Projected Savings: **${sim.projected_savings:,.0f}/mo** | Confidence: {sim.confidence:.0%}")
                 col1, col2 = st.columns(2)
                 if col1.button('✅ Approve', key=f'approve_{i}'):
-                    approved_ids.append(item['resource_id'])
-                    new_state = resume_with_approval(st.session_state.graph_state, approved_ids)
+                    new_state = resume_with_approval(st.session_state.graph_state, [opp.resource_id])
                     st.session_state.graph_state = new_state
                     st.session_state.trace = new_state.get('trace', [])
-                    to_remove.append(i)
+                    st.session_state.approval_queue = [item for j, item in enumerate(queue) if j != i]
                     st.rerun()
                 if col2.button('❌ Reject', key=f'reject_{i}'):
-                    to_remove.append(i)
+                    st.session_state.approval_queue = [item for j, item in enumerate(queue) if j != i]
                     st.rerun()
-        for i in sorted(to_remove, reverse=True):
-            st.session_state.approval_queue.pop(i)
     else:
         st.success('No pending approvals')
 

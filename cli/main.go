@@ -63,7 +63,7 @@ func cmdRun(autoApprove bool) {
 
 	// Print agent trace
 	if trace, ok := data["trace"].([]any); ok {
-		agents := []string{"📡 Monitor", "🔍 Analyst", "⚙️  Optimizer", "⚖️  Trade-off", "🧪 Simulator", "🛡️  Risk", "🚪 Gate", "🚀 Executor"}
+		agents := []string{"📡 Monitor", "🔍 Analyst", "⚙️  Optimizer", "⚖️  Trade-off", "🧪 Simulator", "🛡️  Risk", "🚪 Gate"}
 		for i, t := range trace {
 			prefix := "   "
 			if i < len(agents) {
@@ -113,49 +113,16 @@ func cmdRun(autoApprove bool) {
 }
 
 func cmdApprove() {
-	data, err := get("/status")
+	data, err := get("/run/queue")
 	if err != nil {
 		fmt.Println("❌", err)
 		return
 	}
-	pending := int(data["pending_approval"].(float64))
-	if pending == 0 {
+	queue, _ := data["approval_queue"].([]any)
+	if len(queue) == 0 {
 		fmt.Println("✨ No pending approvals.")
 		return
 	}
-
-	// Re-fetch full approval queue from last run
-	runData, err := get("/status")
-	if err != nil {
-		fmt.Println("❌", err)
-		return
-	}
-	_ = runData
-
-	// Get approval queue via /run result cached in server — fetch via dedicated endpoint
-	resp, err := http.Get(baseURL + "/run/queue")
-	if err != nil || resp.StatusCode != 200 {
-		// Fallback: just ask for IDs manually
-		fmt.Printf("%d items pending. Enter resource IDs to approve (comma-separated): ", pending)
-		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
-		input := strings.TrimSpace(scanner.Text())
-		if input == "" {
-			fmt.Println("No IDs entered.")
-			return
-		}
-		ids := strings.Split(input, ",")
-		for i := range ids {
-			ids[i] = strings.TrimSpace(ids[i])
-		}
-		cmdApproveIDs(ids)
-		return
-	}
-	defer resp.Body.Close()
-
-	var queueData map[string]any
-	json.NewDecoder(resp.Body).Decode(&queueData)
-	queue, _ := queueData["approval_queue"].([]any)
 
 	scanner := bufio.NewScanner(os.Stdin)
 	var approvedIDs []string
@@ -296,7 +263,11 @@ Usage:
   finops reset                  Reset demo state
 
 The CLI requires the API server to be running:
-  uvicorn api.server:app --port 8000`)
+  uvicorn api.server:app --port 8000
+
+Environment:
+  FINOPS_API_URL   API base URL (default: http://localhost:8000)
+                   e.g. export FINOPS_API_URL=https://hackoasis-26.onrender.com`)
 }
 
 func main() {
