@@ -115,7 +115,7 @@ func cmdRun(autoApprove bool) {
 			fmt.Printf("⚡ Auto-approving %d high-risk actions...\n", len(ids))
 			cmdApproveIDs(ids)
 		} else {
-			fmt.Printf("⚠️  %d actions require approval → run: finops approve\n", len(queue))
+			fmt.Printf("⚠️  %d actions require approval → run: rancho approve\n", len(queue))
 			for _, item := range queue {
 				if m, ok := item.(map[string]any); ok {
 					fmt.Printf("   %-30s %-12s  risk=%-6s  $%.0f/month\n",
@@ -257,7 +257,7 @@ func cmdStatus() {
 	}
 	cycleRun := data["cycle_run"].(bool)
 	if !cycleRun {
-		fmt.Println("No cycle run yet. Use: finops run")
+		fmt.Println("No cycle run yet. Use: rancho run")
 		return
 	}
 	fmt.Printf("Findings:         %.0f\n", data["findings"].(float64))
