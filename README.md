@@ -35,12 +35,30 @@ graph LR
 
 ---
 
+## Live API
+
+Deployed at: **https://hackoasis-26.onrender.com**
+- Swagger UI: https://hackoasis-26.onrender.com/docs
+- Status: https://hackoasis-26.onrender.com/status
+
+---
+
 ## Setup
 
+### Dashboard
 ```bash
 pip install -r requirements.txt
 cp .env.example .env  # add your GROQ_API_KEY
 streamlit run app.py
+```
+
+### CLI
+```bash
+cd cli && go build -o finops .
+export FINOPS_API_URL=https://hackoasis-26.onrender.com
+./finops run
+./finops approve
+./finops chat "what is wasting the most money?"
 ```
 
 Get a free Groq API key at https://console.groq.com

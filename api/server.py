@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from agents.supervisor import run_cycle, resume_with_approval, chat as supervisor_chat
@@ -27,6 +28,13 @@ async def lifespan(app):
 
 
 app = FastAPI(title="FinOps AI Agent API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _serialize(obj):
