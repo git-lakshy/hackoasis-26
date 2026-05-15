@@ -1,6 +1,6 @@
 from typing import List, Tuple
 from data.types import OptimizationOpportunity, SimulationResult, RiskAssessment
-from data.mock_cloud import get_resource
+from data.cloud_manager import get_resource
 from memory.store import get_approval_pattern
 
 

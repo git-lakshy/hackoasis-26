@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 from typing import List
 from data.types import OptimizationOpportunity, SimulationResult, RiskAssessment, ActionRecord
-from data.mock_cloud import get_resource, update_resource
+from data.cloud_manager import get_resource, update_resource
 from memory.store import record_outcome
 
 _LOG = Path(__file__).parent.parent / 'data' / 'action_log.json'

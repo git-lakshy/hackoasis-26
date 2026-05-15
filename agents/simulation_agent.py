@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import List
 from data.types import OptimizationOpportunity, SimulationResult
-from data.mock_cloud import get_resource
+from data.cloud_manager import get_resource
 from memory.store import get_similar_outcomes
 
 _CACHE = Path(__file__).parent.parent / 'data' / 'sim_cache.json'

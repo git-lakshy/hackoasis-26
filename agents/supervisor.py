@@ -8,7 +8,7 @@ from agents.tradeoff_agent import run_tradeoff
 from agents.simulation_agent import run_simulation
 from agents.risk_agent import assess_risk, gate_actions
 from agents.executor_agent import execute_batch
-from data.mock_cloud import get_resources
+from data.cloud_manager import get_resources
 
 
 class GraphState(TypedDict):
@@ -107,23 +107,66 @@ _EMPTY_STATE: GraphState = {
 _graph = build_graph()
 
 
-def run_cycle() -> dict:
+def run_cycle(progress_cb=None) -> dict:
+    """Run the full optimization pipeline. progress_cb(agent, message) is called after each node."""
     state = dict(_EMPTY_STATE)
-    # Run all nodes except executor manually (avoid HITL complexity without checkpointer)
-    state = monitor_node(state)
-    state = analyst_node(state)
-    state = optimizer_node(state)
-    state = tradeoff_node(state)
-    state = simulator_node(state)
-    state = risk_node(state)
-    state = gate_node(state)
-    # Do NOT run executor_node yet — wait for approval
+
+    def step(fn, label):
+        nonlocal state
+        state = fn(state)
+        if progress_cb:
+            trace = state.get("trace", [])
+            progress_cb(label, trace[-1] if trace else "")
+        return state
+
+    step(monitor_node,    "MonitorAgent")
+    step(analyst_node,    "AnalystAgent")
+    step(optimizer_node,  "OptimizerAgent")
+    step(tradeoff_node,   "TradeoffAgent")
+    step(simulator_node,  "SimulatorAgent")
+    step(risk_node,       "RiskAgent")
+    step(gate_node,       "GateAgent")
+
+    # Notify about approval queue
+    try:
+        from notifications.notifier import notify_approval_required
+        for opp, sim, risk in state.get("approval_queue", []):
+            notify_approval_required(
+                {"resource_id": opp.resource_id, "action": opp.action,
+                 "projected_savings": opp.estimated_savings},
+                {"risk_tier": risk.risk_tier, "risk_factors": risk.risk_factors},
+                {"confidence": sim.confidence},
+                {"composite_score": opp.composite_score}
+            )
+    except Exception:
+        pass
+
     return state
 
 
 def resume_with_approval(state: dict, approved_ids: List[str]) -> dict:
     state["approved_ids"] = approved_ids
-    return executor_node(state)
+    result = executor_node(state)
+
+    # Notify execution summary
+    try:
+        from notifications.notifier import notify_execution_summary
+        notify_execution_summary(_serialize_exec(result.get("executed", [])))
+    except Exception:
+        pass
+
+    return result
+
+
+def _serialize_exec(executed):
+    out = []
+    for r in executed:
+        try:
+            from dataclasses import asdict
+            out.append(asdict(r))
+        except Exception:
+            out.append({"resource_id": str(r), "action": "unknown", "actual_savings": 0})
+    return out
 
 
 def chat(query: str, state: dict) -> str:

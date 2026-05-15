@@ -1,6 +1,6 @@
 from typing import List
 from data.types import WasteFinding, OptimizationOpportunity
-from data.mock_cloud import get_resource
+from data.cloud_manager import get_resource
 
 def generate_options(finding_dict):
     wtype = finding_dict.get("waste_type", "idle")

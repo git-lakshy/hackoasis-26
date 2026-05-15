@@ -1,16 +1,33 @@
+import os
+# Load .env FIRST — before any agent imports so GROQ_API_KEY, CLOUD_MODE, etc. are visible
+from dotenv import load_dotenv
+load_dotenv()
+
 import json
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional
+import asyncio
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
+# Also load credentials from CLI config if present (merges, doesn't overwrite .env)
+_config_path = Path.home() / ".baburao" / "config.json"
+if _config_path.exists():
+    try:
+        _cfg = json.loads(_config_path.read_text())
+        for k, v in _cfg.items():
+            if k not in os.environ:
+                os.environ[k] = v
+    except Exception:
+        pass
+
 from agents.supervisor import run_cycle, resume_with_approval, chat as supervisor_chat
-from data.mock_cloud import reset_state, get_resources
+from data.cloud_manager import reset_state, get_resources
 from memory.store import seed_memory
 
 DATA = Path(__file__).parent.parent / "data"
@@ -44,6 +61,15 @@ app.add_middleware(
     allow_credentials=True,
 )
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Pydantic Models
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ApproveRequest(BaseModel):
+    approved_ids: List[str]
+
+class ChatRequest(BaseModel):
+    query: str
 
 def _serialize(obj):
     if hasattr(obj, "__dataclass_fields__"):
@@ -168,7 +194,7 @@ def get_opportunities_v1(
 
 @app.post("/api/v1/run")
 def run_v1():
-    """Execute full optimization cycle"""
+    """Execute full optimization cycle (non-streaming)"""
     global _state
     _state = run_cycle()
     return {
@@ -181,6 +207,57 @@ def run_v1():
         "approval_queue": _queue_items(),
         "executed": _serialize(_state.get("executed", [])),
     }
+
+
+@app.get("/api/v1/run/stream")
+def run_v1_stream():
+    """Execute optimization cycle with Server-Sent Events for real-time progress"""
+    global _state
+    events = []
+
+    def progress_cb(agent: str, message: str):
+        events.append(f"data: {json.dumps({'agent': agent, 'message': message})}\n\n")
+
+    def generate():
+        # We run synchronously and collect progress events
+        import threading
+        done = threading.Event()
+        error_holder = []
+
+        def run():
+            global _state
+            try:
+                _state = run_cycle(progress_cb=progress_cb)
+            except Exception as e:
+                error_holder.append(str(e))
+            finally:
+                done.set()
+
+        t = threading.Thread(target=run)
+        t.start()
+
+        sent = 0
+        while not done.is_set() or sent < len(events):
+            while sent < len(events):
+                yield events[sent]
+                sent += 1
+            import time
+            time.sleep(0.05)
+
+        if error_holder:
+            yield f"data: {json.dumps({'error': error_holder[0]})}\n\n"
+        else:
+            summary = {
+                "done": True,
+                "findings_count": len(_state.get("findings", [])),
+                "opportunities_count": len(_state.get("opportunities", [])),
+                "pending_approval": len(_state.get("approval_queue", [])),
+                "approval_queue": _queue_items(),
+            }
+            yield f"data: {json.dumps(summary)}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
 
 
 @app.get("/api/v1/queue")
@@ -266,7 +343,7 @@ def rollback_v1(req: RollbackRequest):
         raise HTTPException(404, f"Action {req.action_id} not found")
     
     # Restore before state
-    from data.mock_cloud import update_resource
+    from data.cloud_manager import update_resource
     before_state = action.get("before_state", {})
     resource_id = action["resource_id"]
     
@@ -291,6 +368,54 @@ def reset_v1():
     (DATA / "action_log.json").write_text("[]")
     (DATA / "sim_cache.json").write_text("[]")
     return {"status": "reset", "version": API_VERSION}
+
+
+@app.post("/api/v1/decide")
+def decide_v1():
+    """Run multi-agent debate for optimization decisions"""
+    if not _state or not _state.get("opportunities"):
+        raise HTTPException(400, "No opportunities available. Run /api/v1/run first.")
+    
+    try:
+        from agents.debate_agent import run_debate_batch
+        
+        opportunities = _state.get("opportunities", [])
+        simulations = _state.get("simulations", [])
+        risks = _state.get("risks", [])
+        
+        # Run debates
+        debates = run_debate_batch(opportunities, simulations, risks, use_llm=True)
+        
+        # Serialize results
+        debate_results = []
+        for debate in debates:
+            debate_results.append({
+                "resource_id": debate.resource_id,
+                "original_action": debate.original_action,
+                "debate_rounds": [[{
+                    "agent_name": arg.agent_name,
+                    "position": arg.position,
+                    "reasoning": arg.reasoning,
+                    "confidence": arg.confidence,
+                    "alternative": arg.alternative
+                } for arg in round_args] for round_args in debate.debate_rounds],
+                "final_decision": debate.final_decision,
+                "consensus_action": debate.consensus_action,
+                "consensus_reasoning": debate.consensus_reasoning,
+                "confidence": debate.confidence,
+                "debate_summary": debate.debate_summary
+            })
+        
+        return {
+            "version": API_VERSION,
+            "count": len(debate_results),
+            "debates": debate_results
+        }
+    
+    except ImportError:
+        raise HTTPException(500, "Debate agent not available")
+    except Exception as e:
+        raise HTTPException(500, f"Debate failed: {str(e)}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -354,18 +479,6 @@ def reset():
     (DATA / "action_log.json").write_text("[]")
     (DATA / "sim_cache.json").write_text("[]")
     return {"status": "reset"}
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Pydantic Models
-# ══════════════════════════════════════════════════════════════════════════════
-
-class ApproveRequest(BaseModel):
-    approved_ids: List[str]
-
-
-class ChatRequest(BaseModel):
-    query: str
 
 
 # ══════════════════════════════════════════════════════════════════════════════

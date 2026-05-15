@@ -362,37 +362,57 @@ func applyFilters(items []any) []any {
 
 // ── Core commands ─────────────────────────────────────────────────────────────
 
-func cmdRun(autoApprove bool) {
-	printProgress("Running optimization cycle...")
+// cmdScan calls the API to run the optimization cycle, streaming agent progress.
+func cmdScan() (map[string]any, error) {
+	agentNames := map[string]string{
+		"MonitorAgent":     "📡 Monitor",
+		"AnalystAgent":     "🔍 Analyst",
+		"OptimizerAgent":   "⚙️  Optimizer",
+		"TradeoffAgent":    "⚖️  Trade-off",
+		"SimulatorAgent":   "🧪 Simulator",
+		"RiskAgent":        "🛡️  Risk",
+		"GateAgent":        "🚪 Gate",
+	}
 
-	data, err := post("/run", nil)
+	fmt.Println()
+	fmt.Println(colorize(colorBold, "  🤖 Supervisor spawning analysis agents..."))
+	fmt.Println(colorize(colorDim, "  "+strings.Repeat("─", 55)))
+
+	data, err := post("/api/v1/run", nil)
 	if err != nil {
-		clearProgress()
+		return nil, err
+	}
+
+	if trace, ok := data["trace"].([]any); ok {
+		for _, t := range trace {
+			s, ok := t.(string)
+			if !ok {
+				continue
+			}
+			for key, icon := range agentNames {
+				if strings.Contains(s, strings.Split(key, "Agent")[0]) {
+					fmt.Printf("    %s → %s\n", colorize(colorCyan, icon), s)
+					break
+				}
+			}
+		}
+	}
+	fmt.Println()
+	return data, nil
+}
+
+func cmdRun(autoApprove bool) {
+	data, err := cmdScan()
+	if err != nil {
 		printError(err.Error())
 		exitCode = ExitNetworkError
 		return
 	}
-	clearProgress()
-
-	printInfo("Running optimization cycle...")
-
-	if trace, ok := data["trace"].([]any); ok {
-		agents := []string{"📡 Monitor", "🔍 Analyst", "⚙️  Optimizer", "⚖️  Trade-off", "🧪 Simulator", "🛡️  Risk", "🚪 Gate"}
-		for i, t := range trace {
-			prefix := "   "
-			if i < len(agents) {
-				prefix = agents[i]
-			}
-			fmt.Printf("  %s → %s\n", prefix, t)
-		}
-	}
-	fmt.Println()
 
 	if executed, ok := data["executed"].([]any); ok && len(executed) > 0 {
 		executed = applyFilters(executed)
 		if len(executed) > 0 {
 			printSuccess(fmt.Sprintf("Auto-executed %d actions:", len(executed)))
-
 			headers := []string{"Resource ID", "Action", "Savings ($/mo)"}
 			var rows [][]string
 			for _, e := range executed {
@@ -609,6 +629,298 @@ func cmdStatus() {
 	fmt.Printf("Executed:         %.0f\n", data["executed"].(float64))
 }
 
+// ── Decide command (Multi-Agent Debate) ──────────────────────────────────────
+
+func cmdDecide() {
+	printInfo("Running multi-agent debate for optimization decisions...")
+	printProgress("Agents are arguing...")
+
+	data, err := post("/api/v1/decide", nil)
+	if err != nil {
+		clearProgress()
+		printError(err.Error())
+		exitCode = ExitNetworkError
+		return
+	}
+	clearProgress()
+
+	debates, ok := data["debates"].([]any)
+	if !ok || len(debates) == 0 {
+		printWarning("No debates to show. Run 'baburao run' first.")
+		return
+	}
+
+	printSuccess(fmt.Sprintf("Completed %d agent debates", len(debates)))
+	fmt.Println()
+
+	for i, debate := range debates {
+		d, ok := debate.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		fmt.Printf("%s═══ Debate #%d: %s ═══%s\n",
+			colorBold, i+1, d["resource_id"], colorReset)
+		fmt.Printf("Proposed Action: %s\n", colorize(colorCyan, fmt.Sprintf("%v", d["original_action"])))
+		fmt.Println()
+
+		// Show agent arguments
+		if rounds, ok := d["debate_rounds"].([]any); ok && len(rounds) > 0 {
+			if round1, ok := rounds[0].([]any); ok {
+				for _, arg := range round1 {
+					if a, ok := arg.(map[string]any); ok {
+						position := fmt.Sprintf("%v", a["position"])
+						emoji := "✅"
+						color := colorGreen
+						if position == "oppose" {
+							emoji = "❌"
+							color = colorRed
+						} else if position == "compromise" {
+							emoji = "⚖️"
+							color = colorYellow
+						}
+
+						fmt.Printf("%s [%s] %s\n",
+							emoji,
+							colorize(colorBold, fmt.Sprintf("%v", a["agent_name"])),
+							position)
+						fmt.Printf("  %s\n", colorize(color, fmt.Sprintf("%v", a["reasoning"])))
+
+						if alt, ok := a["alternative"].(string); ok && alt != "" {
+							fmt.Printf("  %s %s\n", colorize(colorCyan, "Alternative:"), alt)
+						}
+
+						if conf, ok := a["confidence"].(float64); ok {
+							fmt.Printf("  Confidence: %.0f%%\n", conf*100)
+						}
+						fmt.Println()
+					}
+				}
+			}
+		}
+
+		// Show consensus decision
+		decision := fmt.Sprintf("%v", d["final_decision"])
+		decisionColor := colorGreen
+		decisionEmoji := "🤝"
+		if decision == "rejected" {
+			decisionColor = colorRed
+			decisionEmoji = "🚫"
+		} else if decision == "modified" {
+			decisionColor = colorYellow
+			decisionEmoji = "🔄"
+		}
+
+		fmt.Printf("%s %s Decision: %s\n",
+			decisionEmoji,
+			colorize(colorBold, "[ConsensusAgent]"),
+			colorize(decisionColor, strings.ToUpper(decision)))
+		fmt.Printf("  Action: %s\n", colorize(colorCyan, fmt.Sprintf("%v", d["consensus_action"])))
+		fmt.Printf("  Reasoning: %s\n", d["consensus_reasoning"])
+
+		if conf, ok := d["confidence"].(float64); ok {
+			fmt.Printf("  Confidence: %.0f%%\n", conf*100)
+		}
+
+		fmt.Println()
+		fmt.Println(strings.Repeat("─", 80))
+		fmt.Println()
+	}
+
+	// Summary
+	approved := 0
+	rejected := 0
+	modified := 0
+	for _, debate := range debates {
+		if d, ok := debate.(map[string]any); ok {
+			decision := fmt.Sprintf("%v", d["final_decision"])
+			switch decision {
+			case "approved":
+				approved++
+			case "rejected":
+				rejected++
+			case "modified":
+				modified++
+			}
+		}
+	}
+
+	fmt.Println(colorize(colorBold, "Summary:"))
+	fmt.Printf("  %s Approved: %d\n", colorize(colorGreen, "✅"), approved)
+	fmt.Printf("  %s Modified: %d\n", colorize(colorYellow, "🔄"), modified)
+	fmt.Printf("  %s Rejected: %d\n", colorize(colorRed, "🚫"), rejected)
+}
+
+// ── Demo command ──────────────────────────────────────────────────────────────
+
+func cmdDemo() {
+	printBanner()
+	fmt.Println(colorize(colorBold, "\n  🚀 Starting Baburao Demo Cycle"))
+	fmt.Println(colorize(colorDim, "  Mock cloud data with real Groq LLM agent debate"))
+
+	// Step 1: Scan
+	fmt.Println(colorize(colorBold, "\n  ─── Step 1: Infrastructure Scan ───────────────────"))
+	data, err := cmdScan()
+	if err != nil {
+		printError(err.Error())
+		return
+	}
+	showScanSummary(data)
+	showApprovalQueue(data, false)
+
+	// Step 2: LLM Debate
+	fmt.Println(colorize(colorBold, "\n  ─── Step 2: Multi-Agent LLM Debate ────────────────"))
+	fmt.Println(colorize(colorDim, "  Spawning debate agents (powered by Groq LLaMA-3.3-70b)..."))
+	cmdDecide()
+
+	fmt.Println(colorize(colorBold, "\n  ✨ Demo Cycle Complete!"))
+	fmt.Println(colorize(colorDim, "  Run 'baburao agent' for the full interactive experience."))
+}
+
+// ── Interactive Agent command ─────────────────────────────────────────────────
+
+func cmdAgent() {
+	printBanner()
+	fmt.Println(colorize(colorBold, "\n  🤖 Baburao Interactive Agent"))
+	fmt.Println(colorize(colorDim, "  Supervisor ready. Choose an action to begin."))
+
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Println()
+		fmt.Println(colorize(colorBold, "  What would you like to do?"))
+		fmt.Println(colorize(colorDim, "  "+strings.Repeat("─", 48)))
+		fmt.Println("  " + colorize(colorCyan, "[1]") + " 🔍 Scan infrastructure & identify waste")
+		fmt.Println("  " + colorize(colorCyan, "[2]") + " 📈 Scan + Run simulation & cost forecast")
+		fmt.Println("  " + colorize(colorCyan, "[3]") + " 🗣️  Scan + Multi-agent LLM debate")
+		fmt.Println("  " + colorize(colorCyan, "[4]") + " 🚀 Full cycle (scan + debate + approve)")
+		fmt.Println("  " + colorize(colorCyan, "[5]") + " ✅ Review & approve pending actions")
+		fmt.Println("  " + colorize(colorCyan, "[6]") + " 📊 Open TUI dashboard")
+		fmt.Println("  " + colorize(colorCyan, "[7]") + " 💬 Chat with agent")
+		fmt.Println("  " + colorize(colorCyan, "[q]") + " Exit")
+		fmt.Println()
+		fmt.Print(colorize(colorYellow, "  Choice: "))
+
+		choice, _ := reader.ReadString('\n')
+		choice = strings.TrimSpace(choice)
+
+		switch choice {
+		case "1":
+			data, err := cmdScan()
+			if err != nil {
+				printError(err.Error())
+				continue
+			}
+			showScanSummary(data)
+			showApprovalQueue(data, false)
+
+		case "2":
+			data, err := cmdScan()
+			if err != nil {
+				printError(err.Error())
+				continue
+			}
+			showScanSummary(data)
+			fmt.Println(colorize(colorBold, "\n  📈 Simulation & Forecast"))
+			fmt.Println(colorize(colorDim, "  Opening 12-month savings projection..."))
+			cmdDashboard()
+
+		case "3":
+			data, err := cmdScan()
+			if err != nil {
+				printError(err.Error())
+				continue
+			}
+			showScanSummary(data)
+			showApprovalQueue(data, false)
+			fmt.Println()
+			cmdDecide()
+
+		case "4":
+			data, err := cmdScan()
+			if err != nil {
+				printError(err.Error())
+				continue
+			}
+			showScanSummary(data)
+			showApprovalQueue(data, false)
+			fmt.Println()
+			cmdDecide()
+			fmt.Println()
+			cmdApprove()
+
+		case "5":
+			cmdApprove()
+
+		case "6":
+			cmdDashboard()
+
+		case "7":
+			fmt.Print(colorize(colorCyan, "\n  You: "))
+			q, _ := reader.ReadString('\n')
+			q = strings.TrimSpace(q)
+			if q != "" {
+				cmdChat(q)
+			}
+
+		case "q", "Q", "exit", "quit":
+			fmt.Println(colorize(colorDim, "\n  Goodbye! 👋"))
+			return
+
+		default:
+			fmt.Println(colorize(colorYellow, "  Invalid choice. Enter 1-7 or q."))
+		}
+	}
+}
+
+func showScanSummary(data map[string]any) {
+	findings, _ := data["findings_count"].(float64)
+	opps, _ := data["opportunities_count"].(float64)
+	pending, _ := data["pending_approval"].(float64)
+	fmt.Printf("\n  %s Found %s%d%s issues | %s%d%s optimizable | %s%d%s need approval\n",
+		colorize(colorGreen, "✓"),
+		colorize(colorBold, ""), int(findings), colorize(colorReset, ""),
+		colorize(colorBold, ""), int(opps), colorize(colorReset, ""),
+		colorize(colorYellow, ""), int(pending), colorize(colorReset, ""),
+	)
+}
+
+func showApprovalQueue(data map[string]any, autoApprove bool) {
+	queue, ok := data["approval_queue"].([]any)
+	if !ok || len(queue) == 0 {
+		printSuccess("  No pending approvals.")
+		return
+	}
+	queue = applyFilters(queue)
+	if len(queue) == 0 {
+		return
+	}
+	if autoApprove {
+		var ids []string
+		for _, item := range queue {
+			if m, ok := item.(map[string]any); ok {
+				ids = append(ids, fmt.Sprintf("%v", m["resource_id"]))
+			}
+		}
+		cmdApproveIDs(ids)
+		return
+	}
+	printWarning(fmt.Sprintf("  %d high-risk actions need approval:", len(queue)))
+	headers := []string{"Resource ID", "Action", "Risk", "Savings ($/mo)"}
+	var rows [][]string
+	for _, item := range queue {
+		if m, ok := item.(map[string]any); ok {
+			rows = append(rows, []string{
+				fmt.Sprintf("%v", m["resource_id"]),
+				fmt.Sprintf("%v", m["action"]),
+				fmt.Sprintf("%v", m["risk_tier"]),
+				fmt.Sprintf("%.0f", m["projected_savings"]),
+			})
+		}
+	}
+	printTable(headers, rows)
+}
+
 // ── Kubernetes command ────────────────────────────────────────────────────────
 
 func cmdK8s(sub string) {
@@ -784,7 +1096,15 @@ func cmdTerraform(args []string) {
 func usage() {
 	printBanner()
 	fmt.Println(`Usage:
+  baburao dashboard                         Open interactive TUI dashboard
+  baburao login                             Interactive authentication setup
+  baburao demo                              Run full demo (run cycle + agent debate)
+  baburao agent                             🤖 Interactive AI agent (recommended)
+  baburao dashboard                         Open interactive TUI dashboard
+  baburao login                             Configure cloud credentials & notifications
+  baburao demo                              Full demo: scan + LLM debate
   baburao run [--auto-approve]              Run full optimization cycle
+  baburao decide                            Multi-agent LLM debate for decisions
   baburao approve                           Interactively approve/reject high-risk actions
   baburao log                               Show action log
   baburao chat [query]                      Chat with the agent
@@ -803,13 +1123,9 @@ func usage() {
 Environment:
   BABURAO_API_URL         Override API URL (default: https://hackoasis-26.onrender.com)
   AWS_ACCESS_KEY_ID       AWS credentials
-  AWS_SECRET_ACCESS_KEY
-  AWS_REGION              (default: us-east-1)
-  AZURE_SUBSCRIPTION_ID   Azure credentials
-  GCP_PROJECT_ID          GCP project
-  KUBECONFIG              Kubernetes config path
-  PROMETHEUS_URL          Prometheus URL (default: http://localhost:9090)
-  SLACK_WEBHOOK_URL       Slack webhook for alerts`)
+  GROQ_API_KEY            Groq API key for LLM agent debate
+  SLACK_WEBHOOK_URL       Slack webhook for alerts
+  TWILIO_ACCOUNT_SID      Twilio SID for SMS notifications`)
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -821,6 +1137,14 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "dashboard":
+		cmdDashboard()
+	case "login":
+		cmdLogin()
+	case "agent":
+		cmdAgent()
+	case "demo":
+		cmdDemo()
 	case "run":
 		printBanner()
 		autoApprove := len(os.Args) > 2 && os.Args[2] == "--auto-approve"
@@ -861,6 +1185,9 @@ func main() {
 	case "version", "--version", "-v":
 		fmt.Printf("Baburao CLI v%s\n", version)
 		fmt.Printf("API: %s\n", config.BaseURL)
+	case "decide":
+		printBanner()
+		cmdDecide()
 	case "config":
 		if len(os.Args) > 2 && os.Args[2] == "init" {
 			if err := createDefaultConfig(); err != nil {

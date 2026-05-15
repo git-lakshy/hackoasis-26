@@ -270,5 +270,45 @@
     "projected_utilization": 0.0,
     "confidence": 0.95,
     "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-alb-unused-2",
+    "action": "delete",
+    "projected_savings": 22.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-disk-orphan-3",
+    "action": "delete",
+    "projected_savings": 9.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-alb-unused-1",
+    "action": "delete",
+    "projected_savings": 22.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-disk-orphan-2",
+    "action": "delete",
+    "projected_savings": 18.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-disk-orphan-1",
+    "action": "delete",
+    "projected_savings": 35.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
   }
 ]

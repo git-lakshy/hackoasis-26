@@ -1,6 +1,6 @@
 from typing import List
 from data.types import OptimizationOpportunity
-from data.mock_cloud import get_resource
+from data.cloud_manager import get_resource
 
 
 def score_cost_impact(opp: OptimizationOpportunity) -> float:

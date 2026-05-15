@@ -3,20 +3,20 @@ import plotly.express as px
 import pandas as pd
 import json
 from pathlib import Path
-from data.mock_cloud import get_resources_live as get_resources, reset_state
+from data.cloud_manager import get_resources_live as get_resources, reset_state
 import os
 from agents.supervisor import run_cycle, resume_with_approval, chat
 from memory.store import seed_memory
 
 st.set_page_config(title='FinOps AI Agent', layout='wide', page_icon='💰')
 
-for k, v in {'graph_state': {}, 'approval_queue': [], 'trace': [], 'messages': [], 'cycle_run': False}.items():
+for k, v in {'graph_state': {}, 'approval_queue': [], 'trace': [], 'messages': [], 'cycle_run': False, 'debates': []}.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 # Sidebar
 with st.sidebar:
-    st.title('💰 FinOps AI Agent')
+    st.title('💰Baburao - FinOps AI Agent')
 
     demo_mode = st.checkbox('Demo Mode')
     if demo_mode and not st.session_state.get('_seeded'):
@@ -32,9 +32,25 @@ with st.sidebar:
 
     if st.button('🔄 Reset Demo'):
         reset_state()
-        for k in ['graph_state', 'approval_queue', 'trace', 'messages', 'cycle_run', '_seeded']:
+        for k in ['graph_state', 'approval_queue', 'trace', 'messages', 'cycle_run', '_seeded', 'debates']:
             st.session_state.pop(k, None)
         st.rerun()
+
+    if st.button('🗣️ Run Agent Debate'):
+        if not st.session_state.get('cycle_run'):
+            st.warning("Please run optimization cycle first to identify opportunities.")
+        else:
+            with st.spinner("Agents are debating..."):
+                from agents.debate_agent import run_debate_batch
+                state = st.session_state.graph_state
+                opps = state.get('opportunities', [])
+                sims = state.get('simulations', [])
+                risks = state.get('risks', [])
+                if not opps:
+                    st.warning("No opportunities to debate.")
+                else:
+                    st.session_state.debates = run_debate_batch(opps, sims, risks, use_llm=True)
+                    st.success(f"Completed {len(st.session_state.debates)} debates.")
 
     if st.session_state.cycle_run:
         state = st.session_state.graph_state
@@ -47,7 +63,7 @@ with st.sidebar:
         st.metric('Potential Savings', f"${auto_savings + appr_savings:,.0f}/mo")
 
 # Main tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(['Cost Overview', 'Agent Trace', 'Action Log', 'Approval Queue', 'Chat'])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(['Cost Overview', 'Agent Trace', 'Action Log', 'Approval Queue', 'Chat', 'Debate'])
 
 with tab1:
     resources = get_resources()
@@ -131,3 +147,34 @@ with tab5:
         st.session_state.messages.append({'role': 'assistant', 'content': response})
         with st.chat_message('assistant'):
             st.write(response)
+
+with tab6:
+    debates = st.session_state.get('debates', [])
+    if debates:
+        st.subheader(f"Completed {len(debates)} Agent Debates")
+        for i, debate in enumerate(debates):
+            with st.expander(f"Debate #{i+1}: {debate.resource_id} - {debate.original_action}", expanded=(i==0)):
+                st.markdown(f"**Proposed Action:** `{debate.original_action}`")
+                
+                # Show arguments
+                if debate.debate_rounds and debate.debate_rounds[0]:
+                    st.markdown("### Agent Arguments")
+                    for arg in debate.debate_rounds[0]:
+                        emoji = "✅" if arg.position == "support" else "❌" if arg.position == "oppose" else "⚖️"
+                        color = "green" if arg.position == "support" else "red" if arg.position == "oppose" else "orange"
+                        st.markdown(f"{emoji} **[{arg.agent_name}]** :{color}[{arg.position.upper()}]")
+                        st.markdown(f"> {arg.reasoning}")
+                        if arg.alternative:
+                            st.markdown(f"> *Alternative:* {arg.alternative}")
+                        st.caption(f"Confidence: {arg.confidence:.0%}")
+                
+                # Show consensus
+                st.markdown("---")
+                st.markdown("### 🤝 Consensus Decision")
+                decision_color = "green" if debate.final_decision == "approved" else "red" if debate.final_decision == "rejected" else "orange"
+                st.markdown(f"**Decision:** :{decision_color}[{debate.final_decision.upper()}]")
+                st.markdown(f"**Action to take:** `{debate.consensus_action}`")
+                st.markdown(f"**Reasoning:** {debate.consensus_reasoning}")
+                st.caption(f"Consensus Confidence: {debate.confidence:.0%}")
+    else:
+        st.info("Run Agent Debate from the sidebar to see multi-agent consensus in action.")

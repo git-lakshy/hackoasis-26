@@ -1,0 +1,58 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'baburao-demo'
+    environment: 'demo'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Node Exporter - Host metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          instance: 'demo-host-1'
+
+  # Pushgateway - Custom metrics from Baburao
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']
+        labels:
+          service: 'pushgateway'
+
+  # Real Kubernetes metrics (kube-state-metrics)
+  # Uncomment and configure when you have a real K8s cluster
+  # - job_name: 'kubernetes-pods'
+  #   kubernetes_sd_configs:
+  #     - role: pod
+  #   relabel_configs:
+  #     - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+  #       action: keep
+  #       regex: true
+
+  # Baburao API metrics
+  # - job_name: 'baburao-api'
+  #   static_configs:
+  #     - targets: ['baburao-api:8000']
+  #       labels:
+  #         service: 'baburao-api'

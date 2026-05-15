@@ -2,7 +2,7 @@ import os
 import random
 from typing import List
 from data.types import WasteFinding
-from data.mock_cloud import get_resources, get_resource, get_resources_live
+from data.cloud_manager import get_resources, get_resource, get_resources_live
 
 _CLOUD_MODE = os.getenv("CLOUD_MODE", "mock").lower()
 

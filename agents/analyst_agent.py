@@ -1,6 +1,6 @@
 from typing import List
 from data.types import WasteFinding
-from data.mock_cloud import get_resources, get_resource
+from data.cloud_manager import get_resources, get_resource
 
 _ROOT_CAUSES = {
     "idle": "No active workload detected for 7+ days",
