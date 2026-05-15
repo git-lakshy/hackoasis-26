@@ -11,6 +11,22 @@ import (
 	"strings"
 )
 
+const banner = `
+ ██████╗  █████╗ ███╗   ██╗ ██████╗██╗  ██╗ ██████╗
+ ██╔══██╗██╔══██╗████╗  ██║██╔════╝██║  ██║██╔═══██╗
+ ██████╔╝███████║██╔██╗ ██║██║     ███████║██║   ██║
+ ██╔══██╗██╔══██║██║╚██╗██║██║     ██╔══██║██║   ██║
+ ██║  ██║██║  ██║██║ ╚████║╚██████╗██║  ██║╚██████╔╝
+ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝
+          ██████╗ ███╗   ██╗     ██████╗██╗      ██████╗ ██╗   ██╗██████╗
+         ██╔═══██╗████╗  ██║    ██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗
+         ██║   ██║██╔██╗ ██║    ██║     ██║     ██║   ██║██║   ██║██║  ██║
+         ██║   ██║██║╚██╗██║    ██║     ██║     ██║   ██║██║   ██║██║  ██║
+         ╚██████╔╝██║ ╚████║    ╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝
+          ╚═════╝ ╚═╝  ╚═══╝     ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝
+ 🤖 Intelligent Infrastructure Cost Optimizer  |  FinOps AI Agent
+`
+
 const defaultURL = "http://localhost:8000"
 
 var baseURL string
@@ -252,18 +268,14 @@ func cmdStatus() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 func usage() {
-	fmt.Println(`FinOps AI Agent CLI
-
-Usage:
-  finops run [--auto-approve]   Run full optimization cycle
-  finops approve                Interactively approve/reject high-risk actions
-  finops log                    Show action log
-  finops chat [query]           Chat with the agent
-  finops status                 Show current cycle status
-  finops reset                  Reset demo state
-
-The CLI requires the API server to be running:
-  uvicorn api.server:app --port 8000
+	fmt.Println(banner)
+	fmt.Println(`Usage:
+  rancho run [--auto-approve]   Run full optimization cycle
+  rancho approve                Interactively approve/reject high-risk actions
+  rancho log                    Show action log
+  rancho chat [query]           Chat with the agent
+  rancho status                 Show current cycle status
+  rancho reset                  Reset demo state
 
 Environment:
   FINOPS_API_URL   API base URL (default: http://localhost:8000)
@@ -278,9 +290,11 @@ func main() {
 
 	switch os.Args[1] {
 	case "run":
+		fmt.Println(banner)
 		autoApprove := len(os.Args) > 2 && os.Args[2] == "--auto-approve"
 		cmdRun(autoApprove)
 	case "approve":
+		fmt.Println(banner)
 		cmdApprove()
 	case "log":
 		cmdLog()
