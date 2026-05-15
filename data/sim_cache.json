@@ -1,0 +1,274 @@
+[
+  {
+    "resource_id": "gcp-vm-oversized-3",
+    "action": "resize",
+    "projected_savings": 310.0,
+    "projected_utilization": 23.759999999999998,
+    "confidence": 0.765,
+    "time_to_savings_days": 7
+  },
+  {
+    "resource_id": "aws-rds-dev-1",
+    "action": "resize",
+    "projected_savings": 90.0,
+    "projected_utilization": 14.4,
+    "confidence": 0.85,
+    "time_to_savings_days": 7
+  },
+  {
+    "resource_id": "aws-rds-dev-2",
+    "action": "resize",
+    "projected_savings": 90.0,
+    "projected_utilization": 11.700000000000001,
+    "confidence": 0.85,
+    "time_to_savings_days": 7
+  },
+  {
+    "resource_id": "az-vm-4",
+    "action": "resize",
+    "projected_savings": 17.5,
+    "projected_utilization": 30.6,
+    "confidence": 0.765,
+    "time_to_savings_days": 7
+  },
+  {
+    "resource_id": "gcp-vm-4",
+    "action": "resize",
+    "projected_savings": 12.5,
+    "projected_utilization": 34.2,
+    "confidence": 0.765,
+    "time_to_savings_days": 7
+  },
+  {
+    "resource_id": "gcp-vm-oversized-1",
+    "action": "resize",
+    "projected_savings": 310.0,
+    "projected_utilization": 16.2,
+    "confidence": 0.765,
+    "time_to_savings_days": 7
+  },
+  {
+    "resource_id": "gcp-vm-oversized-2",
+    "action": "resize",
+    "projected_savings": 310.0,
+    "projected_utilization": 20.7,
+    "confidence": 0.765,
+    "time_to_savings_days": 7
+  },
+  {
+    "resource_id": "aws-ec2-idle-4",
+    "action": "terminate",
+    "projected_savings": 70.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.855,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-alb-unused-2",
+    "action": "terminate",
+    "projected_savings": 22.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "gcp-storage-2",
+    "action": "terminate",
+    "projected_savings": 10.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-disk-orphan-3",
+    "action": "terminate",
+    "projected_savings": 9.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-blob-2",
+    "action": "terminate",
+    "projected_savings": 8.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-s3-3",
+    "action": "terminate",
+    "projected_savings": 7.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-ec2-idle-3",
+    "action": "terminate",
+    "projected_savings": 70.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.855,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-alb-unused-1",
+    "action": "terminate",
+    "projected_savings": 22.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-disk-orphan-2",
+    "action": "terminate",
+    "projected_savings": 18.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "gcp-storage-1",
+    "action": "terminate",
+    "projected_savings": 160.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-ec2-idle-1",
+    "action": "terminate",
+    "projected_savings": 140.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.855,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-ec2-idle-2",
+    "action": "terminate",
+    "projected_savings": 140.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.855,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-blob-1",
+    "action": "terminate",
+    "projected_savings": 120.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-s3-1",
+    "action": "terminate",
+    "projected_savings": 115.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "gcp-bq-1",
+    "action": "terminate",
+    "projected_savings": 95.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-disk-1",
+    "action": "terminate",
+    "projected_savings": 70.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-cdn-1",
+    "action": "terminate",
+    "projected_savings": 55.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-s3-2",
+    "action": "terminate",
+    "projected_savings": 46.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-alb-1",
+    "action": "terminate",
+    "projected_savings": 45.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-lb-1",
+    "action": "terminate",
+    "projected_savings": 40.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-alb-2",
+    "action": "terminate",
+    "projected_savings": 35.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-disk-orphan-1",
+    "action": "terminate",
+    "projected_savings": 35.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-disk-2",
+    "action": "terminate",
+    "projected_savings": 35.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-lambda-1",
+    "action": "terminate",
+    "projected_savings": 18.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "gcp-func-1",
+    "action": "terminate",
+    "projected_savings": 12.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "az-func-1",
+    "action": "terminate",
+    "projected_savings": 10.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  },
+  {
+    "resource_id": "aws-lambda-2",
+    "action": "terminate",
+    "projected_savings": 5.0,
+    "projected_utilization": 0.0,
+    "confidence": 0.95,
+    "time_to_savings_days": 1
+  }
+]
