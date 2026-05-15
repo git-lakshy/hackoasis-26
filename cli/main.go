@@ -12,18 +12,22 @@ import (
 )
 
 const banner = `
- ██████╗  █████╗ ███╗   ██╗ ██████╗██╗  ██╗ ██████╗
- ██╔══██╗██╔══██╗████╗  ██║██╔════╝██║  ██║██╔═══██╗
- ██████╔╝███████║██╔██╗ ██║██║     ███████║██║   ██║
- ██╔══██╗██╔══██║██║╚██╗██║██║     ██╔══██║██║   ██║
- ██║  ██║██║  ██║██║ ╚████║╚██████╗██║  ██║╚██████╔╝
- ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝
-          ██████╗ ███╗   ██╗     ██████╗██╗      ██████╗ ██╗   ██╗██████╗
-         ██╔═══██╗████╗  ██║    ██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗
-         ██║   ██║██╔██╗ ██║    ██║     ██║     ██║   ██║██║   ██║██║  ██║
-         ██║   ██║██║╚██╗██║    ██║     ██║     ██║   ██║██║   ██║██║  ██║
-         ╚██████╔╝██║ ╚████║    ╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝
-          ╚═════╝ ╚═╝  ╚═══╝     ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝
+ ██████╗  █████╗ ██████╗ ██╗   ██╗██████╗  █████╗  ██████╗ 
+ ██╔══██╗██╔══██╗██╔══██╗██║   ██║██╔══██╗██╔══██╗██╔═══██╗
+ ██████╔╝███████║██████╔╝██║   ██║██████╔╝███████║██║   ██║
+ ██╔══██╗██╔══██║██╔══██╗██║   ██║██╔══██╗██╔══██║██║   ██║
+ ██████╔╝██║  ██║██████╔╝╚██████╔╝██║  ██║██║  ██║╚██████╔╝
+ ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝
+
+        💰💰💰  SHOW ME THE MONEY  💰💰💰
+   $$$    $$$$$$    $    $$$$$$    $    $$$$$$    $$$
+  $   $  $      $  $ $  $      $  $ $  $      $  $   $
+  $      $      $ $   $ $      $ $   $ $      $  $
+   $$$   $      $$$$$$$ $      $$$$$$$ $      $   $$$
+      $  $      $     $ $      $     $ $      $      $
+  $   $  $      $     $ $      $     $ $      $  $   $
+   $$$    $$$$$$      $  $$$$$$      $  $$$$$$    $$$
+
  🤖 Intelligent Infrastructure Cost Optimizer  |  FinOps AI Agent
 `
 
@@ -115,7 +119,7 @@ func cmdRun(autoApprove bool) {
 			fmt.Printf("⚡ Auto-approving %d high-risk actions...\n", len(ids))
 			cmdApproveIDs(ids)
 		} else {
-			fmt.Printf("⚠️  %d actions require approval → run: rancho approve\n", len(queue))
+			fmt.Printf("⚠️  %d actions require approval → run: baburao approve\n", len(queue))
 			for _, item := range queue {
 				if m, ok := item.(map[string]any); ok {
 					fmt.Printf("   %-30s %-12s  risk=%-6s  $%.0f/month\n",
@@ -257,7 +261,7 @@ func cmdStatus() {
 	}
 	cycleRun := data["cycle_run"].(bool)
 	if !cycleRun {
-		fmt.Println("No cycle run yet. Use: rancho run")
+		fmt.Println("No cycle run yet. Use: baburao run")
 		return
 	}
 	fmt.Printf("Findings:         %.0f\n", data["findings"].(float64))
@@ -270,12 +274,12 @@ func cmdStatus() {
 func usage() {
 	fmt.Println(banner)
 	fmt.Println(`Usage:
-  rancho run [--auto-approve]   Run full optimization cycle
-  rancho approve                Interactively approve/reject high-risk actions
-  rancho log                    Show action log
-  rancho chat [query]           Chat with the agent
-  rancho status                 Show current cycle status
-  rancho reset                  Reset demo state
+  baburao run [--auto-approve]   Run full optimization cycle
+  baburao approve                Interactively approve/reject high-risk actions
+  baburao log                    Show action log
+  baburao chat [query]           Chat with the agent
+  baburao status                 Show current cycle status
+  baburao reset                  Reset demo state
 
 Environment:
   FINOPS_API_URL   API base URL (default: http://localhost:8000)
