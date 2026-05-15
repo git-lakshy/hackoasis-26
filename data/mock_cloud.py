@@ -1,4 +1,8 @@
 import copy
+import os
+
+# Set CLOUD_MODE=real to use live AWS data. Defaults to mock.
+_CLOUD_MODE = os.getenv("CLOUD_MODE", "mock").lower()
 
 _ORIGINAL = [
     # --- AWS EC2 (4 idle: cpu_util < 5) ---
@@ -121,3 +125,26 @@ def update_resource(resource_id: str, **kwargs) -> bool:
 def reset_state():
     global _STATE
     _STATE = copy.deepcopy(_ORIGINAL)
+
+
+
+def get_resources_live(cloud=None, env=None, resource_type=None) -> list:
+    """
+    Returns resources from real AWS if CLOUD_MODE=real and credentials exist,
+    otherwise falls back to mock data transparently.
+    """
+    if _CLOUD_MODE == "real":
+        try:
+            from data.aws_connector import fetch_aws_resources, is_available
+            if is_available():
+                resources = fetch_aws_resources()
+                if cloud:
+                    resources = [r for r in resources if r["cloud"] == cloud]
+                if env:
+                    resources = [r for r in resources if r["env"] == env]
+                if resource_type:
+                    resources = [r for r in resources if r["type"] == resource_type]
+                return resources
+        except Exception as e:
+            print(f"[aws_connector] falling back to mock: {e}")
+    return get_resources(cloud, env, resource_type)
