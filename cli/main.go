@@ -31,7 +31,7 @@ const banner = `
  🤖 Intelligent Infrastructure Cost Optimizer  |  FinOps AI Agent
 `
 
-const defaultURL = "http://localhost:8000"
+const defaultURL = "https://hackoasis-26.onrender.com"
 
 var baseURL string
 
@@ -282,8 +282,8 @@ func usage() {
   baburao reset                  Reset demo state
 
 Environment:
-  FINOPS_API_URL   API base URL (default: http://localhost:8000)
-                   e.g. export FINOPS_API_URL=https://hackoasis-26.onrender.com`)
+  FINOPS_API_URL   Override API URL (default: https://hackoasis-26.onrender.com)
+                   e.g. export FINOPS_API_URL=http://localhost:8000`)
 }
 
 func main() {
