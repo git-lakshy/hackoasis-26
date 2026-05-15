@@ -130,21 +130,39 @@ def reset_state():
 
 def get_resources_live(cloud=None, env=None, resource_type=None) -> list:
     """
-    Returns resources from real AWS if CLOUD_MODE=real and credentials exist,
-    otherwise falls back to mock data transparently.
+    Returns resources from real cloud providers if CLOUD_MODE != mock.
+    Supports: aws | azure | gcp | all. Falls back to mock on any error.
     """
-    if _CLOUD_MODE == "real":
+    if _CLOUD_MODE == "mock":
+        return get_resources(cloud, env, resource_type)
+
+    all_resources = []
+    connectors = {
+        "aws": ("data.aws_connector", "fetch_aws_resources"),
+        "azure": ("data.azure_connector", "fetch_azure_resources"),
+        "gcp": ("data.gcp_connector", "fetch_gcp_resources"),
+    }
+
+    targets = [_CLOUD_MODE] if _CLOUD_MODE in connectors else list(connectors.keys())
+
+    for provider in targets:
+        module_name, fn_name = connectors[provider]
         try:
-            from data.aws_connector import fetch_aws_resources, is_available
-            if is_available():
-                resources = fetch_aws_resources()
-                if cloud:
-                    resources = [r for r in resources if r["cloud"] == cloud]
-                if env:
-                    resources = [r for r in resources if r["env"] == env]
-                if resource_type:
-                    resources = [r for r in resources if r["type"] == resource_type]
-                return resources
+            import importlib
+            mod = importlib.import_module(module_name)
+            if mod.is_available():
+                all_resources += getattr(mod, fn_name)()
         except Exception as e:
-            print(f"[aws_connector] falling back to mock: {e}")
-    return get_resources(cloud, env, resource_type)
+            print(f"[{provider}] falling back to mock: {e}")
+            all_resources += [r for r in get_resources(None, None, None) if r["cloud"] == provider]
+
+    if not all_resources:
+        return get_resources(cloud, env, resource_type)
+
+    if cloud:
+        all_resources = [r for r in all_resources if r["cloud"] == cloud]
+    if env:
+        all_resources = [r for r in all_resources if r["env"] == env]
+    if resource_type:
+        all_resources = [r for r in all_resources if r["type"] == resource_type]
+    return all_resources

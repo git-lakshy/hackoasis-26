@@ -12,7 +12,7 @@ _LOG = Path(__file__).parent.parent / 'data' / 'action_log.json'
 
 def execute_action(opp: OptimizationOpportunity, sim: SimulationResult, risk: RiskAssessment) -> ActionRecord:
     rid = opp.resource_id
-    before_state = dict(get_resource(rid))
+    before_state = dict(get_resource(rid) or {"monthly_cost": 0})
 
     if opp.action == 'resize':
         update_resource(rid, monthly_cost=before_state['monthly_cost'] * 0.5, status='running')
@@ -23,7 +23,7 @@ def execute_action(opp: OptimizationOpportunity, sim: SimulationResult, risk: Ri
     elif opp.action == 'delete':
         update_resource(rid, monthly_cost=0.0, status='deleted')
 
-    after_state = dict(get_resource(rid))
+    after_state = dict(get_resource(rid) or {"monthly_cost": 0})
     actual_savings = before_state['monthly_cost'] - after_state['monthly_cost']
     accuracy = actual_savings / sim.projected_savings if sim.projected_savings > 0 else None
 
@@ -49,8 +49,25 @@ def execute_action(opp: OptimizationOpportunity, sim: SimulationResult, risk: Ri
     _LOG.write_text(json.dumps(log, indent=2))
     record_outcome(record.__dict__)
 
+    # Push metric to Prometheus Pushgateway (non-blocking)
+    try:
+        from data.prometheus_connector import push_optimization_metric
+        push_optimization_metric(opp.action, actual_savings, rid)
+    except Exception:
+        pass
+
     return record
 
 
 def execute_batch(auto_queue) -> List[ActionRecord]:
-    return [execute_action(opp, sim, risk) for opp, sim, risk in auto_queue]
+    executed = [execute_action(opp, sim, risk) for opp, sim, risk in auto_queue]
+
+    # Send Slack summary after batch execution
+    if executed:
+        try:
+            from notifications.notifier import notify_execution_summary
+            notify_execution_summary([r.__dict__ for r in executed])
+        except Exception:
+            pass
+
+    return executed

@@ -3,7 +3,7 @@ import plotly.express as px
 import pandas as pd
 import json
 from pathlib import Path
-from data.mock_cloud import get_resources, reset_state
+from data.mock_cloud import get_resources_live as get_resources, reset_state
 import os
 from agents.supervisor import run_cycle, resume_with_approval, chat
 from memory.store import seed_memory
