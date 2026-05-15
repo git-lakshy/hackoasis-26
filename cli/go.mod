@@ -1,3 +1,3 @@
-module finops-cli
+module baburao-cli
 
 go 1.21

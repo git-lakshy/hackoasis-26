@@ -9,77 +9,372 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
-// ANSI green — only the banner is colored
-const green = "\033[32m"
-const reset = "\033[0m"
+const version = "1.0.0"
 
-const bannerText = `
- ██████╗  █████╗ ██████╗ ██╗   ██╗██████╗  █████╗  ██████╗ 
+// ANSI color codes
+const (
+	colorReset   = "\033[0m"
+	colorRed     = "\033[31m"
+	colorGreen   = "\033[32m"
+	colorYellow  = "\033[33m"
+	colorBlue    = "\033[34m"
+	colorMagenta = "\033[35m"
+	colorCyan    = "\033[36m"
+	colorWhite   = "\033[37m"
+	colorBold    = "\033[1m"
+	colorDim     = "\033[2m"
+)
+
+const bannerText = ` ██████╗  █████╗ ██████╗ ██╗   ██╗██████╗  █████╗  ██████╗ 
  ██╔══██╗██╔══██╗██╔══██╗██║   ██║██╔══██╗██╔══██╗██╔═══██╗
  ██████╔╝███████║██████╔╝██║   ██║██████╔╝███████║██║   ██║
  ██╔══██╗██╔══██║██╔══██╗██║   ██║██╔══██╗██╔══██║██║   ██║
  ██████╔╝██║  ██║██████╔╝╚██████╔╝██║  ██║██║  ██║╚██████╔╝
  ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝
-
- 🤖 Intelligent Infrastructure Cost Optimizer  |  FinOps AI Agent
-`
+ 🤖 Intelligent Infrastructure Cost Optimizer  |  Baburao AI Agent`
 
 const defaultURL = "https://hackoasis-26.onrender.com"
 
-var baseURL string
+// Global configuration
+type Config struct {
+	BaseURL      string
+	Debug        bool
+	OutputFormat string
+	Profile      string
+	NoColor      bool
+	CloudFilter  string
+	EnvFilter    string
+	RiskFilter   string
+}
+
+var (
+	config     Config
+	debugLog   bool
+	exitCode   = 0
+	homeDir, _ = os.UserHomeDir()
+	configPath = filepath.Join(homeDir, ".baburao", "config.yaml")
+)
+
+// Exit codes
+const (
+	ExitSuccess       = 0
+	ExitError         = 1
+	ExitUsageError    = 2
+	ExitNetworkError  = 3
+	ExitAPIError      = 4
+	ExitConfigError   = 5
+	ExitUserCancelled = 130
+)
 
 func init() {
-	baseURL = os.Getenv("FINOPS_API_URL")
-	if baseURL == "" {
-		baseURL = defaultURL
+	// Load configuration from environment and config file
+	config.BaseURL = os.Getenv("BABURAO_API_URL")
+	if config.BaseURL == "" {
+		config.BaseURL = defaultURL
+	}
+	config.Profile = os.Getenv("BABURAO_PROFILE")
+	if config.Profile == "" {
+		config.Profile = "default"
+	}
+
+	// Try to load config file
+	loadConfigFile()
+}
+
+// ── Configuration file support ────────────────────────────────────────────────
+
+func loadConfigFile() {
+	// Check if config file exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+
+	// Simple YAML-like parsing for basic key-value pairs
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "api_url":
+			if config.BaseURL == defaultURL {
+				config.BaseURL = value
+			}
+		case "default_profile":
+			if config.Profile == "default" {
+				config.Profile = value
+			}
+		case "output_format":
+			config.OutputFormat = value
+		case "no_color":
+			config.NoColor = value == "true"
+		}
 	}
 }
 
+func createDefaultConfig() error {
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return err
+	}
+
+	defaultConfig := `# Baburao CLI Configuration
+# API endpoint
+api_url: https://hackoasis-26.onrender.com
+
+# Default profile (dev, staging, prod)
+default_profile: default
+
+# Output format (table, json, yaml)
+output_format: table
+
+# Disable colors
+no_color: false
+`
+
+	return os.WriteFile(configPath, []byte(defaultConfig), 0644)
+}
+
+// ── Color and formatting helpers ──────────────────────────────────────────────
+
+func colorize(color, text string) string {
+	if config.NoColor {
+		return text
+	}
+	return color + text + colorReset
+}
+
 func printBanner() {
-	fmt.Print(green + bannerText + reset)
+	fmt.Println(colorize(colorGreen, bannerText))
+}
+
+func printSuccess(msg string) {
+	fmt.Println(colorize(colorGreen, "✅ "+msg))
+}
+
+func printError(msg string) {
+	fmt.Fprintln(os.Stderr, colorize(colorRed, "❌ "+msg))
+}
+
+func printWarning(msg string) {
+	fmt.Println(colorize(colorYellow, "⚠️  "+msg))
+}
+
+func printInfo(msg string) {
+	fmt.Println(colorize(colorCyan, "ℹ️  "+msg))
+}
+
+func printDebug(msg string) {
+	if debugLog {
+		fmt.Println(colorize(colorDim, "[DEBUG] "+msg))
+	}
+}
+
+func printProgress(msg string) {
+	fmt.Print(colorize(colorBlue, "⏳ "+msg))
+}
+
+func clearProgress() {
+	fmt.Print("\r" + strings.Repeat(" ", 80) + "\r")
+}
+
+// ── Table formatting ──────────────────────────────────────────────────────────
+
+func printTable(headers []string, rows [][]string) {
+	if config.OutputFormat == "json" {
+		printTableJSON(headers, rows)
+		return
+	}
+	if config.OutputFormat == "yaml" {
+		printTableYAML(headers, rows)
+		return
+	}
+
+	// Calculate column widths
+	widths := make([]int, len(headers))
+	for i, h := range headers {
+		widths[i] = len(h)
+	}
+	for _, row := range rows {
+		for i, cell := range row {
+			if i < len(widths) && len(cell) > widths[i] {
+				widths[i] = len(cell)
+			}
+		}
+	}
+
+	// Print header
+	fmt.Print(colorize(colorBold, ""))
+	for i, h := range headers {
+		fmt.Printf("%-*s  ", widths[i], h)
+	}
+	fmt.Println(colorize(colorReset, ""))
+
+	// Print separator
+	for _, w := range widths {
+		fmt.Print(strings.Repeat("─", w+2))
+	}
+	fmt.Println()
+
+	// Print rows
+	for _, row := range rows {
+		for i, cell := range row {
+			if i < len(widths) {
+				fmt.Printf("%-*s  ", widths[i], cell)
+			}
+		}
+		fmt.Println()
+	}
+}
+
+func printTableJSON(headers []string, rows [][]string) {
+	var result []map[string]string
+	for _, row := range rows {
+		item := make(map[string]string)
+		for i, cell := range row {
+			if i < len(headers) {
+				item[headers[i]] = cell
+			}
+		}
+		result = append(result, item)
+	}
+	data, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(data))
+}
+
+func printTableYAML(headers []string, rows [][]string) {
+	for idx, row := range rows {
+		fmt.Printf("- item_%d:\n", idx+1)
+		for i, cell := range row {
+			if i < len(headers) {
+				fmt.Printf("    %s: %s\n", headers[i], cell)
+			}
+		}
+	}
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 func post(path string, body any) (map[string]any, error) {
+	printDebug(fmt.Sprintf("POST %s%s", config.BaseURL, path))
+
 	var r io.Reader
 	if body != nil {
 		b, _ := json.Marshal(body)
 		r = bytes.NewReader(b)
+		printDebug(fmt.Sprintf("Request body: %s", string(b)))
 	}
-	resp, err := http.Post(baseURL+path, "application/json", r)
+
+	resp, err := http.Post(config.BaseURL+path, "application/json", r)
 	if err != nil {
-		return nil, fmt.Errorf("cannot reach API at %s — is the server running?\n  uvicorn api.server:app --port 8000", baseURL)
+		printDebug(fmt.Sprintf("HTTP error: %v", err))
+		return nil, fmt.Errorf("cannot reach API at %s — is the server running?\n  uvicorn api.server:app --port 8000", config.BaseURL)
 	}
 	defer resp.Body.Close()
+
+	printDebug(fmt.Sprintf("Response status: %d", resp.StatusCode))
+
 	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
 	return result, nil
 }
 
 func get(path string) (map[string]any, error) {
-	resp, err := http.Get(baseURL + path)
+	printDebug(fmt.Sprintf("GET %s%s", config.BaseURL, path))
+
+	resp, err := http.Get(config.BaseURL + path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot reach API at %s — is the server running?\n  uvicorn api.server:app --port 8000", baseURL)
+		printDebug(fmt.Sprintf("HTTP error: %v", err))
+		return nil, fmt.Errorf("cannot reach API at %s — is the server running?\n  uvicorn api.server:app --port 8000", config.BaseURL)
 	}
 	defer resp.Body.Close()
+
+	printDebug(fmt.Sprintf("Response status: %d", resp.StatusCode))
+
 	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
 	return result, nil
 }
 
+// ── Filter helpers ────────────────────────────────────────────────────────────
+
+func applyFilters(items []any) []any {
+	if config.CloudFilter == "" && config.EnvFilter == "" && config.RiskFilter == "" {
+		return items
+	}
+
+	var filtered []any
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		// Cloud filter
+		if config.CloudFilter != "" {
+			if cloud, ok := m["cloud"].(string); ok {
+				if !strings.EqualFold(cloud, config.CloudFilter) {
+					continue
+				}
+			}
+		}
+
+		// Environment filter
+		if config.EnvFilter != "" {
+			if env, ok := m["environment"].(string); ok {
+				if !strings.EqualFold(env, config.EnvFilter) {
+					continue
+				}
+			}
+		}
+
+		// Risk filter
+		if config.RiskFilter != "" {
+			if risk, ok := m["risk_tier"].(string); ok {
+				if !strings.EqualFold(risk, config.RiskFilter) {
+					continue
+				}
+			}
+		}
+
+		filtered = append(filtered, item)
+	}
+
+	return filtered
+}
+
 // ── Core commands ─────────────────────────────────────────────────────────────
 
 func cmdRun(autoApprove bool) {
-	fmt.Println("🚀 Running optimization cycle...")
+	printProgress("Running optimization cycle...")
+
 	data, err := post("/run", nil)
 	if err != nil {
-		fmt.Println("❌", err)
+		clearProgress()
+		printError(err.Error())
+		exitCode = ExitNetworkError
 		return
 	}
+	clearProgress()
+
+	printInfo("Running optimization cycle...")
 
 	if trace, ok := data["trace"].([]any); ok {
 		agents := []string{"📡 Monitor", "🔍 Analyst", "⚙️  Optimizer", "⚖️  Trade-off", "🧪 Simulator", "🛡️  Risk", "🚪 Gate"}
@@ -94,49 +389,73 @@ func cmdRun(autoApprove bool) {
 	fmt.Println()
 
 	if executed, ok := data["executed"].([]any); ok && len(executed) > 0 {
-		fmt.Printf("✅ Auto-executed %d actions:\n", len(executed))
-		for _, e := range executed {
-			if rec, ok := e.(map[string]any); ok {
-				fmt.Printf("   %-30s %-12s → $%.0f/month saved\n",
-					rec["resource_id"], rec["action"], rec["actual_savings"])
+		executed = applyFilters(executed)
+		if len(executed) > 0 {
+			printSuccess(fmt.Sprintf("Auto-executed %d actions:", len(executed)))
+
+			headers := []string{"Resource ID", "Action", "Savings ($/mo)"}
+			var rows [][]string
+			for _, e := range executed {
+				if rec, ok := e.(map[string]any); ok {
+					rows = append(rows, []string{
+						fmt.Sprintf("%v", rec["resource_id"]),
+						fmt.Sprintf("%v", rec["action"]),
+						fmt.Sprintf("%.0f", rec["actual_savings"]),
+					})
+				}
 			}
+			printTable(headers, rows)
+			fmt.Println()
 		}
-		fmt.Println()
 	}
 
 	if queue, ok := data["approval_queue"].([]any); ok && len(queue) > 0 {
-		if autoApprove {
-			var ids []string
-			for _, item := range queue {
-				if m, ok := item.(map[string]any); ok {
-					ids = append(ids, m["resource_id"].(string))
+		queue = applyFilters(queue)
+		if len(queue) > 0 {
+			if autoApprove {
+				var ids []string
+				for _, item := range queue {
+					if m, ok := item.(map[string]any); ok {
+						ids = append(ids, m["resource_id"].(string))
+					}
 				}
-			}
-			fmt.Printf("⚡ Auto-approving %d high-risk actions...\n", len(ids))
-			cmdApproveIDs(ids)
-		} else {
-			fmt.Printf("⚠️  %d actions require approval → run: baburao approve\n", len(queue))
-			for _, item := range queue {
-				if m, ok := item.(map[string]any); ok {
-					fmt.Printf("   %-30s %-12s  risk=%-6s  $%.0f/month\n",
-						m["resource_id"], m["action"], m["risk_tier"], m["projected_savings"])
+				printInfo(fmt.Sprintf("Auto-approving %d high-risk actions...", len(ids)))
+				cmdApproveIDs(ids)
+			} else {
+				printWarning(fmt.Sprintf("%d actions require approval → run: baburao approve", len(queue)))
+
+				headers := []string{"Resource ID", "Action", "Risk", "Savings ($/mo)"}
+				var rows [][]string
+				for _, item := range queue {
+					if m, ok := item.(map[string]any); ok {
+						rows = append(rows, []string{
+							fmt.Sprintf("%v", m["resource_id"]),
+							fmt.Sprintf("%v", m["action"]),
+							fmt.Sprintf("%v", m["risk_tier"]),
+							fmt.Sprintf("%.0f", m["projected_savings"]),
+						})
+					}
 				}
+				printTable(headers, rows)
 			}
 		}
 	} else {
-		fmt.Println("✨ No pending approvals.")
+		printSuccess("No pending approvals.")
 	}
 }
 
 func cmdApprove() {
 	data, err := get("/run/queue")
 	if err != nil {
-		fmt.Println("❌", err)
+		printError(err.Error())
+		exitCode = ExitNetworkError
 		return
 	}
 	queue, _ := data["approval_queue"].([]any)
+	queue = applyFilters(queue)
+
 	if len(queue) == 0 {
-		fmt.Println("✨ No pending approvals.")
+		printSuccess("No pending approvals.")
 		return
 	}
 
@@ -148,48 +467,73 @@ func cmdApprove() {
 		if !ok {
 			continue
 		}
-		fmt.Printf("\n[%d/%d] %s %s\n", i+1, len(queue), m["action"], m["resource_id"])
+		fmt.Printf("\n%s[%d/%d]%s %s %s\n",
+			colorBold, i+1, len(queue), colorReset,
+			colorize(colorYellow, fmt.Sprintf("%v", m["action"])),
+			colorize(colorCyan, fmt.Sprintf("%v", m["resource_id"])))
+
 		if factors, ok := m["risk_factors"].([]any); ok {
 			for _, f := range factors {
-				fmt.Printf("      ⚠️  %s\n", f)
+				printWarning(fmt.Sprintf("  %s", f))
 			}
 		}
-		fmt.Printf("      Savings: $%.0f/month | Confidence: %.0f%%\n",
-			m["projected_savings"], m["confidence"].(float64)*100)
+
+		confidence := 0.0
+		if c, ok := m["confidence"].(float64); ok {
+			confidence = c * 100
+		}
+
+		fmt.Printf("      %s: $%.0f/month | %s: %.0f%%\n",
+			colorize(colorGreen, "Savings"),
+			m["projected_savings"],
+			colorize(colorBlue, "Confidence"),
+			confidence)
+
 		fmt.Print("      Approve? [y/n/s(skip)]: ")
 		scanner.Scan()
-		switch strings.ToLower(strings.TrimSpace(scanner.Text())) {
+		response := strings.ToLower(strings.TrimSpace(scanner.Text()))
+
+		switch response {
 		case "y", "yes":
 			approvedIDs = append(approvedIDs, m["resource_id"].(string))
-			fmt.Println("      ✅ Approved")
+			printSuccess("      Approved")
 		case "n", "no":
-			fmt.Println("      ❌ Rejected")
+			printError("      Rejected")
 		default:
-			fmt.Println("      ⏭️  Skipped")
+			printInfo("      Skipped")
 		}
 	}
 
 	if len(approvedIDs) == 0 {
-		fmt.Println("\nNo actions approved.")
+		printInfo("No actions approved.")
 		return
 	}
-	fmt.Printf("\nResuming execution for %d approved actions...\n", len(approvedIDs))
+
+	printInfo(fmt.Sprintf("Resuming execution for %d approved actions...", len(approvedIDs)))
 	cmdApproveIDs(approvedIDs)
 }
 
 func cmdApproveIDs(ids []string) {
 	data, err := post("/approve", map[string]any{"approved_ids": ids})
 	if err != nil {
-		fmt.Println("❌", err)
+		printError(err.Error())
+		exitCode = ExitNetworkError
 		return
 	}
+
 	if executed, ok := data["executed"].([]any); ok {
+		headers := []string{"Resource ID", "Action", "Savings ($/mo)"}
+		var rows [][]string
 		for _, e := range executed {
 			if rec, ok := e.(map[string]any); ok {
-				fmt.Printf("  ✅ %-30s %-12s → $%.0f/month saved\n",
-					rec["resource_id"], rec["action"], rec["actual_savings"])
+				rows = append(rows, []string{
+					fmt.Sprintf("%v", rec["resource_id"]),
+					fmt.Sprintf("%v", rec["action"]),
+					fmt.Sprintf("%.0f", rec["actual_savings"]),
+				})
 			}
 		}
+		printTable(headers, rows)
 	}
 }
 
@@ -453,8 +797,11 @@ func usage() {
   baburao terraform apply <id> <action>     Apply Terraform plan (real changes)
   baburao terraform version                 Show Terraform version
 
+  baburao version                           Show version information
+  baburao config [init]                     Show or initialize configuration
+
 Environment:
-  FINOPS_API_URL          Override API URL (default: https://hackoasis-26.onrender.com)
+  BABURAO_API_URL         Override API URL (default: https://hackoasis-26.onrender.com)
   AWS_ACCESS_KEY_ID       AWS credentials
   AWS_SECRET_ACCESS_KEY
   AWS_REGION              (default: us-east-1)
@@ -511,8 +858,27 @@ func main() {
 			args = os.Args[2:]
 		}
 		cmdTerraform(args)
+	case "version", "--version", "-v":
+		fmt.Printf("Baburao CLI v%s\n", version)
+		fmt.Printf("API: %s\n", config.BaseURL)
+	case "config":
+		if len(os.Args) > 2 && os.Args[2] == "init" {
+			if err := createDefaultConfig(); err != nil {
+				printError(fmt.Sprintf("Failed to create config: %v", err))
+				exitCode = ExitConfigError
+			} else {
+				printSuccess(fmt.Sprintf("Config created at %s", configPath))
+			}
+		} else {
+			fmt.Printf("Config file: %s\n", configPath)
+			fmt.Printf("API URL: %s\n", config.BaseURL)
+			fmt.Printf("Profile: %s\n", config.Profile)
+			fmt.Printf("Output format: %s\n", config.OutputFormat)
+		}
 	default:
 		fmt.Printf("Unknown command: %s\n\n", os.Args[1])
 		usage()
 	}
+
+	os.Exit(exitCode)
 }

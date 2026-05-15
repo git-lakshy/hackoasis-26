@@ -22,6 +22,7 @@ cli/finops
 cli/finops.exe
 cli/baburao
 cli/baburao.exe
+cli/go.sum
 
 # Terraform
 terraform/
