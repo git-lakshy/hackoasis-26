@@ -8,25 +8,21 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 )
 
-const banner = `
+// ANSI green — only the banner is colored
+const green = "\033[32m"
+const reset = "\033[0m"
+
+const bannerText = `
  ██████╗  █████╗ ██████╗ ██╗   ██╗██████╗  █████╗  ██████╗ 
  ██╔══██╗██╔══██╗██╔══██╗██║   ██║██╔══██╗██╔══██╗██╔═══██╗
  ██████╔╝███████║██████╔╝██║   ██║██████╔╝███████║██║   ██║
  ██╔══██╗██╔══██║██╔══██╗██║   ██║██╔══██╗██╔══██║██║   ██║
  ██████╔╝██║  ██║██████╔╝╚██████╔╝██║  ██║██║  ██║╚██████╔╝
  ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝
-
-        💰💰💰  SHOW ME THE MONEY  💰💰💰
-   $$$    $$$$$$    $    $$$$$$    $    $$$$$$    $$$
-  $   $  $      $  $ $  $      $  $ $  $      $  $   $
-  $      $      $ $   $ $      $ $   $ $      $  $
-   $$$   $      $$$$$$$ $      $$$$$$$ $      $   $$$
-      $  $      $     $ $      $     $ $      $      $
-  $   $  $      $     $ $      $     $ $      $  $   $
-   $$$    $$$$$$      $  $$$$$$      $  $$$$$$    $$$
 
  🤖 Intelligent Infrastructure Cost Optimizer  |  FinOps AI Agent
 `
@@ -40,6 +36,10 @@ func init() {
 	if baseURL == "" {
 		baseURL = defaultURL
 	}
+}
+
+func printBanner() {
+	fmt.Print(green + bannerText + reset)
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ func get(path string) (map[string]any, error) {
 	return result, nil
 }
 
-// ── Commands ──────────────────────────────────────────────────────────────────
+// ── Core commands ─────────────────────────────────────────────────────────────
 
 func cmdRun(autoApprove bool) {
 	fmt.Println("🚀 Running optimization cycle...")
@@ -81,7 +81,6 @@ func cmdRun(autoApprove bool) {
 		return
 	}
 
-	// Print agent trace
 	if trace, ok := data["trace"].([]any); ok {
 		agents := []string{"📡 Monitor", "🔍 Analyst", "⚙️  Optimizer", "⚖️  Trade-off", "🧪 Simulator", "🛡️  Risk", "🚪 Gate"}
 		for i, t := range trace {
@@ -92,10 +91,8 @@ func cmdRun(autoApprove bool) {
 			fmt.Printf("  %s → %s\n", prefix, t)
 		}
 	}
-
 	fmt.Println()
 
-	// Print executed actions
 	if executed, ok := data["executed"].([]any); ok && len(executed) > 0 {
 		fmt.Printf("✅ Auto-executed %d actions:\n", len(executed))
 		for _, e := range executed {
@@ -107,7 +104,6 @@ func cmdRun(autoApprove bool) {
 		fmt.Println()
 	}
 
-	// Print approval queue
 	if queue, ok := data["approval_queue"].([]any); ok && len(queue) > 0 {
 		if autoApprove {
 			var ids []string
@@ -259,7 +255,7 @@ func cmdStatus() {
 		fmt.Println("❌", err)
 		return
 	}
-	cycleRun := data["cycle_run"].(bool)
+	cycleRun, _ := data["cycle_run"].(bool)
 	if !cycleRun {
 		fmt.Println("No cycle run yet. Use: baburao run")
 		return
@@ -269,22 +265,207 @@ func cmdStatus() {
 	fmt.Printf("Executed:         %.0f\n", data["executed"].(float64))
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Kubernetes command ────────────────────────────────────────────────────────
+
+func cmdK8s(sub string) {
+	switch sub {
+	case "scan", "":
+		fmt.Println("☸️  Scanning Kubernetes cluster for waste...")
+		data, err := get("/k8s/scan")
+		if err != nil {
+			fmt.Println("❌", err)
+			return
+		}
+		findings, _ := data["findings"].([]any)
+		if len(findings) == 0 {
+			fmt.Println("✨ No Kubernetes waste found.")
+			return
+		}
+		fmt.Printf("Found %d findings:\n", len(findings))
+		for _, f := range findings {
+			if m, ok := f.(map[string]any); ok {
+				fmt.Printf("  %-40s %-12s  $%.0f/mo  %s\n",
+					m["resource_id"], m["waste_type"], m["monthly_cost"], m["recommendation"])
+			}
+		}
+	case "nodes":
+		fmt.Println("☸️  Kubernetes node summary:")
+		data, err := get("/k8s/nodes")
+		if err != nil {
+			fmt.Println("❌", err)
+			return
+		}
+		nodes, _ := data["nodes"].([]any)
+		fmt.Printf("%-30s %-12s %-12s %-8s\n", "Node", "CPU Cap", "Mem (MB)", "Ready")
+		fmt.Println(strings.Repeat("─", 70))
+		for _, n := range nodes {
+			if m, ok := n.(map[string]any); ok {
+				ready := "✅"
+				if r, ok := m["ready"].(bool); ok && !r {
+					ready = "❌"
+				}
+				fmt.Printf("%-30s %-12s %-12.0f %-8s\n",
+					m["name"], m["cpu_capacity"], m["mem_capacity_mb"], ready)
+			}
+		}
+	default:
+		fmt.Printf("Unknown k8s subcommand: %s\n", sub)
+		fmt.Println("Usage: baburao k8s [scan|nodes]")
+	}
+}
+
+// ── Prometheus command ────────────────────────────────────────────────────────
+
+func cmdPrometheus(sub string) {
+	switch sub {
+	case "idle", "":
+		fmt.Println("📊 Querying Prometheus for idle instances...")
+		data, err := get("/prometheus/idle")
+		if err != nil {
+			fmt.Println("❌", err)
+			return
+		}
+		instances, _ := data["idle_instances"].([]any)
+		if len(instances) == 0 {
+			fmt.Println("✨ No idle instances found in Prometheus.")
+			return
+		}
+		fmt.Printf("%-40s %-12s\n", "Instance", "CPU Avg")
+		fmt.Println(strings.Repeat("─", 55))
+		for _, inst := range instances {
+			if m, ok := inst.(map[string]any); ok {
+				fmt.Printf("%-40s %.4f\n", m["instance"], m["cpu_avg"])
+			}
+		}
+	case "status":
+		data, err := get("/prometheus/status")
+		if err != nil {
+			fmt.Println("❌", err)
+			return
+		}
+		if avail, ok := data["available"].(bool); ok && avail {
+			fmt.Printf("✅ Prometheus reachable at %s\n", data["url"])
+		} else {
+			fmt.Printf("❌ Prometheus not reachable at %s\n", data["url"])
+		}
+	default:
+		fmt.Printf("Unknown prometheus subcommand: %s\n", sub)
+		fmt.Println("Usage: baburao prometheus [idle|status]")
+	}
+}
+
+// ── Terraform command ─────────────────────────────────────────────────────────
+
+func cmdTerraform(args []string) {
+	if len(args) == 0 {
+		fmt.Println("Usage: baburao terraform <plan|apply> <resource_id> <action> [--apply]")
+		return
+	}
+
+	sub := args[0]
+	switch sub {
+	case "plan":
+		if len(args) < 3 {
+			fmt.Println("Usage: baburao terraform plan <resource_id> <action>")
+			return
+		}
+		resourceID, action := args[1], args[2]
+		fmt.Printf("🏗️  Generating Terraform plan for %s (%s)...\n", resourceID, action)
+		data, err := post("/terraform/plan", map[string]any{
+			"resource_id": resourceID,
+			"action":      action,
+			"dry_run":     true,
+		})
+		if err != nil {
+			fmt.Println("❌", err)
+			return
+		}
+		if errMsg, ok := data["error"].(string); ok {
+			fmt.Println("❌", errMsg)
+			return
+		}
+		fmt.Println("📋 Terraform Plan:")
+		fmt.Println(data["plan"])
+
+	case "apply":
+		if len(args) < 3 {
+			fmt.Println("Usage: baburao terraform apply <resource_id> <action>")
+			return
+		}
+		resourceID, action := args[1], args[2]
+		fmt.Printf("⚡ Applying Terraform for %s (%s)...\n", resourceID, action)
+		scanner := bufio.NewScanner(os.Stdin)
+		fmt.Print("This will make real infrastructure changes. Confirm? [yes/no]: ")
+		scanner.Scan()
+		if strings.ToLower(strings.TrimSpace(scanner.Text())) != "yes" {
+			fmt.Println("Aborted.")
+			return
+		}
+		data, err := post("/terraform/plan", map[string]any{
+			"resource_id": resourceID,
+			"action":      action,
+			"dry_run":     false,
+		})
+		if err != nil {
+			fmt.Println("❌", err)
+			return
+		}
+		if errMsg, ok := data["error"].(string); ok {
+			fmt.Println("❌", errMsg)
+			return
+		}
+		if success, ok := data["success"].(bool); ok && success {
+			fmt.Println("✅ Terraform apply succeeded.")
+			fmt.Println(data["output"])
+		} else {
+			fmt.Println("❌ Terraform apply failed:", data["error"])
+		}
+
+	case "version":
+		out, err := exec.Command("terraform", "version").Output()
+		if err != nil {
+			fmt.Println("❌ terraform not found in PATH")
+			return
+		}
+		fmt.Print(string(out))
+
+	default:
+		fmt.Printf("Unknown terraform subcommand: %s\n", sub)
+		fmt.Println("Usage: baburao terraform [plan|apply|version]")
+	}
+}
+
+// ── Usage ─────────────────────────────────────────────────────────────────────
 
 func usage() {
-	fmt.Println(banner)
+	printBanner()
 	fmt.Println(`Usage:
-  baburao run [--auto-approve]   Run full optimization cycle
-  baburao approve                Interactively approve/reject high-risk actions
-  baburao log                    Show action log
-  baburao chat [query]           Chat with the agent
-  baburao status                 Show current cycle status
-  baburao reset                  Reset demo state
+  baburao run [--auto-approve]              Run full optimization cycle
+  baburao approve                           Interactively approve/reject high-risk actions
+  baburao log                               Show action log
+  baburao chat [query]                      Chat with the agent
+  baburao status                            Show current cycle status
+  baburao reset                             Reset demo state
+
+  baburao k8s [scan|nodes]                  Kubernetes waste scan / node summary
+  baburao prometheus [idle|status]          Prometheus idle instance query
+  baburao terraform plan <id> <action>      Generate Terraform plan (dry-run)
+  baburao terraform apply <id> <action>     Apply Terraform plan (real changes)
+  baburao terraform version                 Show Terraform version
 
 Environment:
-  FINOPS_API_URL   Override API URL (default: https://hackoasis-26.onrender.com)
-                   e.g. export FINOPS_API_URL=http://localhost:8000`)
+  FINOPS_API_URL          Override API URL (default: https://hackoasis-26.onrender.com)
+  AWS_ACCESS_KEY_ID       AWS credentials
+  AWS_SECRET_ACCESS_KEY
+  AWS_REGION              (default: us-east-1)
+  AZURE_SUBSCRIPTION_ID   Azure credentials
+  GCP_PROJECT_ID          GCP project
+  KUBECONFIG              Kubernetes config path
+  PROMETHEUS_URL          Prometheus URL (default: http://localhost:9090)
+  SLACK_WEBHOOK_URL       Slack webhook for alerts`)
 }
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 func main() {
 	if len(os.Args) < 2 {
@@ -294,11 +475,11 @@ func main() {
 
 	switch os.Args[1] {
 	case "run":
-		fmt.Println(banner)
+		printBanner()
 		autoApprove := len(os.Args) > 2 && os.Args[2] == "--auto-approve"
 		cmdRun(autoApprove)
 	case "approve":
-		fmt.Println(banner)
+		printBanner()
 		cmdApprove()
 	case "log":
 		cmdLog()
@@ -312,6 +493,24 @@ func main() {
 		cmdStatus()
 	case "reset":
 		cmdReset()
+	case "k8s":
+		sub := ""
+		if len(os.Args) > 2 {
+			sub = os.Args[2]
+		}
+		cmdK8s(sub)
+	case "prometheus":
+		sub := ""
+		if len(os.Args) > 2 {
+			sub = os.Args[2]
+		}
+		cmdPrometheus(sub)
+	case "terraform":
+		args := []string{}
+		if len(os.Args) > 2 {
+			args = os.Args[2:]
+		}
+		cmdTerraform(args)
 	default:
 		fmt.Printf("Unknown command: %s\n\n", os.Args[1])
 		usage()

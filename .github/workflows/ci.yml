@@ -1,0 +1,126 @@
+name: FinOps CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run optimization cycle daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      run_optimization:
+        description: 'Run optimization cycle'
+        required: false
+        default: 'false'
+
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+  build-cli:
+    name: Build Baburao CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: cli/go.sum
+
+      - name: Build CLI (Linux)
+        run: |
+          cd cli
+          go build -ldflags="-s -w" -o baburao .
+
+      - name: Build CLI (Windows)
+        run: |
+          cd cli
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o baburao.exe .
+
+      - name: Upload CLI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: baburao-cli
+          path: |
+            cli/baburao
+            cli/baburao.exe
+
+  scheduled-optimization:
+    name: Scheduled Optimization Cycle
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.run_optimization == 'true'
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run optimization cycle via API
+        run: |
+          curl -s -X POST "$FINOPS_API_URL/run" \
+            -H "Content-Type: application/json" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          executed = data.get('executed', [])
+          queue = data.get('approval_queue', [])
+          print(f'Executed: {len(executed)} actions')
+          print(f'Pending approval: {len(queue)} actions')
+          total = sum(float(r.get('actual_savings', 0)) for r in executed)
+          print(f'Total savings: \${total:.0f}/mo')
+          "
+        env:
+          FINOPS_API_URL: ${{ secrets.FINOPS_API_URL || 'https://hackoasis-26.onrender.com' }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack on failure
+        if: failure()
+        run: |
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{"text":"🚨 FinOps scheduled optimization cycle failed! Check GitHub Actions."}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          curl -s -X POST "$RENDER_DEPLOY_HOOK"
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}

@@ -1,7 +1,14 @@
 # agent.md — Intelligent Infrastructure Cost Optimizer
 ## Multi-Agent Coordination Document
 
-4 parallel sub-agents build this FinOps AI system. Each works independently using the shared contracts below.
+**Status:** ✅ Phase 1 Complete (Mock Data) | 🚧 Phase 2 In Progress (Real Cloud Integration)
+
+This document defines the coordination contracts for the multi-agent FinOps system. All agents communicate through shared data types and follow the pipeline orchestrated by the Supervisor.
+
+**See also:**
+- `CURRENT_STATUS.md` - Current project state and completed features
+- `TASKS.md` - Detailed implementation roadmap for real cloud integration
+- `AGENT_ARCHITECTURE.md` - Deep dive into agent design and capabilities
 
 ---
 

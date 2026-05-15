@@ -137,3 +137,78 @@ def reset():
     (DATA / "action_log.json").write_text("[]")
     (DATA / "sim_cache.json").write_text("[]")
     return {"status": "reset"}
+
+
+# ── Kubernetes endpoints ───────────────────────────────────────────────────────
+
+@app.get("/k8s/scan")
+def k8s_scan():
+    try:
+        from data.k8s_connector import scan_k8s_waste, is_available
+        if not is_available():
+            return {"findings": [], "error": "Kubernetes not available (check KUBECONFIG)"}
+        findings = scan_k8s_waste()
+        return {"findings": [{"resource_id": f.resource_id, "waste_type": f.waste_type,
+                               "monthly_cost": f.monthly_cost, "recommendation": f.recommendation,
+                               "severity": f.severity} for f in findings]}
+    except Exception as e:
+        return {"findings": [], "error": str(e)}
+
+
+@app.get("/k8s/nodes")
+def k8s_nodes():
+    try:
+        from data.k8s_connector import get_node_summary, is_available
+        if not is_available():
+            return {"nodes": [], "error": "Kubernetes not available"}
+        return {"nodes": get_node_summary()}
+    except Exception as e:
+        return {"nodes": [], "error": str(e)}
+
+
+# ── Prometheus endpoints ───────────────────────────────────────────────────────
+
+@app.get("/prometheus/idle")
+def prometheus_idle():
+    try:
+        from data.prometheus_connector import get_idle_instances, is_available
+        if not is_available():
+            return {"idle_instances": [], "error": "Prometheus not reachable"}
+        return {"idle_instances": get_idle_instances()}
+    except Exception as e:
+        return {"idle_instances": [], "error": str(e)}
+
+
+@app.get("/prometheus/status")
+def prometheus_status():
+    import os
+    from data.prometheus_connector import is_available
+    url = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
+    return {"available": is_available(), "url": url}
+
+
+# ── Terraform endpoints ────────────────────────────────────────────────────────
+
+class TerraformRequest(BaseModel):
+    resource_id: str
+    action: str
+    dry_run: bool = True
+    region: str = "us-east-1"
+    new_type: str = "t3.small"
+
+
+@app.post("/terraform/plan")
+def terraform_plan(req: TerraformRequest):
+    try:
+        from data.terraform_module import generate_and_apply, is_available
+        if not is_available():
+            return {"error": "terraform CLI not found in PATH"}
+        result = generate_and_apply(
+            req.resource_id, req.action,
+            dry_run=req.dry_run,
+            region=req.region,
+            new_type=req.new_type,
+        )
+        return result
+    except Exception as e:
+        return {"error": str(e)}

@@ -1,7 +1,46 @@
+# Secrets
 .env
+*.pem
+*.key
+credentials.json
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .pytest_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+
+# Go binaries
 cli/finops
 cli/finops.exe
+cli/baburao
+cli/baburao.exe
+
+# Terraform
+terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+
+# Data / cache (runtime generated)
+data/action_log.json
+data/sim_cache.json
+data/memory.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
